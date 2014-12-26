@@ -1,6 +1,7 @@
 /* name: akasaki_charge             */
 /* purpose: 鉛蓄電池の充放電を制御する  */
 /* author: original: Sekihara       */
+/* platform: Arduino UNO R3         */
 /* lisence: MIT                     */
 /* created: 2014-10 (?)             */
 // ------------------------------
@@ -82,16 +83,14 @@ void loop()
   }
   
   // 放電の可否を判断
-  if(discharge_condition == discharging)
-  {
+  if(discharge_condition == discharging){
     if(vol_batt < discharge_cut_voltage){
       print_timestamp();
       Serial.println("-- discharge stop --");
       discharge_condition = !discharging;
     }
   }
-  else
-  {
+  else{
     if(vol_batt > discharge_possible_voltage){
       print_timestamp();
       Serial.println("-- discharge start --");
