@@ -1,86 +1,110 @@
 /* name: akasaki_charge             */
-/* purpose: 生血蓄電池の充放電を制御する */
+/* purpose: 鉛蓄電池の充放電を制御する  */
 /* author: original: Sekihara       */
 /* lisence: MIT                     */
 /* created: 2014-10 (?)             */
+// ------------------------------
 // [Port map]
 // No data
 // 
 // 
 // 
-// 
-#include<stdlib.h>
+// ------------------------------
 
-#define limit_high_cut       14.0 // 充電カット電圧
-#define limit_high_reconnect 13.5 // 充電復帰電圧
-#define limit_low_cut        10.8 // 放電終止電圧
-#define limit_low_reconnect  11.5 // 復帰電圧
+// 充放電制御パラメータ
+const float charge_cut_voltage = 14.0;          // 充電カット電圧, 定数類は大文字のほうがいいかも。
+const float discharge_cut_voltage = 10.8;       // 放電終止電圧
+const float discharge_possible_voltage = 11.5;  // 放電可能電圧
 
-#define sw_in_pin 1   // 謎のポート
-#define sw_out_pin 2  // 
+// port
+const int charge_control_port = 1;
+const int discharge_control_port = 2;
+const int adport_for_solar_cell_voltage = A1;
+const int adport_for_battery_voltage = A3;
+
+// other
+const long check_cycle = 5000l;
+const int charging = HIGH;
+const int discharging = HIGH;
+int charge_condition = !charging;           // 充電の状況, 初期設定と一貫性を持たせるためにグローバル変数とした。
+int discharge_condition = !discharging;     // 放電の状況
 
 
-
-double vol_b, vol_p;
-bool sw_in, sw_out;
-bool flag;
-
-void setup() {
-  pinMode(sw_in_pin, OUTPUT);
-  pinMode(sw_out_pin, OUTPUT);
-  //Serial.begin(9600);
-  sw_in = sw_out = true;//フラグ建設
-  flag = 1;
+// タイムスタンプをシリアルで出力
+void print_timestamp()
+{
+  Serial.print("time stamp,");
+  Serial.println(millis());
+  return;
 }
 
-void loop() {
-  /*最悪は使う
-   if(flag){
-   digitalWrite(sw_out_pin,HIGH);
-   delay(1000*60*60*48);
-   flag = 0;
-   }
-   */
-  //値のインプット
-  //バッテリ
-  vol_b = analogRead(3);
-  //太陽光パネル
-  vol_p = analogRead(1);
 
-  //条件判断：充電回路スイッチ
-  //充電止め
-  if(vol_b > vol_p && !sw_in )
-    sw_in = false;
-  else if(vol_b > limit_high_cut)
-    sw_in = false;
-  //充電開始
-  else if(vol_b < limit_high_reconnect)
-    sw_in = true;
+void setup()
+{
+  // port setting
+  pinMode(charge_control_port, OUTPUT);        // HIGHでON・・・本当？
+  pinMode(discharge_control_port, OUTPUT);
+  digitalWrite(charge_control_port, charge_condition);
+  digitalWrite(discharge_control_port, discharge_condition);
 
-  //放電回路スイッチ
-  //放電止め
-  if(vol_b < limit_low_cut )
-    sw_out = false;
-  //放電開始
-  else if(vol_b > limit_low_reconnect)
-    sw_out = true;
+  // serial setting
+  Serial.begin(9600);
 
-  //回路のスイッチ制御
-  if(sw_in == true)
-    digitalWrite(sw_in_pin, HIGH);
-  else
-    digitalWrite(sw_in_pin, LOW);
+  // other
+  //digitalWrite(discharge_control_port, HIGH); // 強制的に放電させる場合はコメントアウトを解く
+  //while(1);
 
-  if(sw_out == true)
-    digitalWrite(sw_out_pin, HIGH);
-  else
-    digitalWrite(sw_out_pin, LOW);
-
-  /*
-      Serial.print("vol_b=");
-   Serial.print(vol_b/(double)1024*(double)5);
-   Serial.print("     vol_p=");
-   Serial.println(vol_p/(double)1024*(double)5);
-   */
+  Serial.println("-- setup fin. --");
 }
+
+void loop()
+{
+  // 電圧の計測（ここではAD変換値）
+  double vol_batt = analogRead(adport_for_battery_voltage);
+  double vol_cell = analogRead(adport_for_solar_cell_voltage);
+  // AD変換値を電圧に変換する
+  // 回路構成が不明なので記述不可能（ポートに入力される電圧は計算可能だが、計測したい電圧の分圧電圧にすぎない（はず））, もし、直接つないでいたらポートが焼けている。
+
+  // 充電の可否を判断
+  if(charge_condition == charging){
+    if(vol_batt > charge_cut_voltage){
+      print_timestamp();
+      Serial.println("-- charging fin. --");
+      charge_condition = !charging;
+    }
+  }
+  else{
+    if(vol_batt < vol_cell && vol_batt < charge_cut_voltage){
+      print_timestamp();
+      Serial.println("-- charging start --");
+      charge_condition = charging;
+    }
+  }
+  
+  // 放電の可否を判断
+  if(discharge_condition == discharging)
+  {
+    if(vol_batt < discharge_cut_voltage){
+      print_timestamp();
+      Serial.println("-- discharge stop --");
+      discharge_condition = !discharging;
+    }
+  }
+  else
+  {
+    if(vol_batt > discharge_possible_voltage){
+      print_timestamp();
+      Serial.println("-- discharge start --");
+      discharge_condition = discharging;
+    }
+  }
+  
+  // 判断の結果を反映させる（両方共判断の後に反映させることで過渡状態での判断を避ける）
+  digitalWrite(charge_control_port, charge_condition);
+  digitalWrite(discharge_control_port, discharge_condition);
+
+  delay(check_cycle);           // この待ち時間が短いと短時間の内にスイッチがON−OFFされてしまう可能性がある。
+}
+
+
 
