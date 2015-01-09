@@ -29,7 +29,7 @@ const int charging = HIGH;
 const int discharging = HIGH;
 int charge_condition = !charging;           // 充電の状況, 初期設定と一貫性を持たせるためにグローバル変数とした。
 int discharge_condition = !discharging;     // 放電の状況
-
+const int adv_max = 1023;                   // AD変換値の最大値（Arduinoでも種類や設定で異なる）
 
 // タイムスタンプをシリアルで出力
 void print_timestamp()
@@ -61,10 +61,12 @@ void setup()
 void loop()
 {
   // 電圧の計測（ここではAD変換値）
-  double vol_batt = analogRead(adport_for_battery_voltage);
-  double vol_cell = analogRead(adport_for_solar_cell_voltage);
+  double vol_batt = (double)analogRead(adport_for_battery_voltage);
+  double vol_cell = (double)analogRead(adport_for_solar_cell_voltage);
+  
   // AD変換値を電圧に変換する
-  // 回路構成が不明なので記述不可能（ポートに入力される電圧は計算可能だが、計測したい電圧の分圧電圧にすぎない（はず））, もし、直接つないでいたらポートが焼けている。
+  vol_batt = 15.0 * vol_batt / (double)adv_max; // 電池の出力電圧が15Vのときに5VがAD変換ポートに入力される回路構成を前提とする
+  vol_cell = 20.0 * vol_cell / (double)adv_max; // 太陽電池のセルの出力電圧が20Vのときに5VがAD変換ポートに入力される回路構成を前提とする
 
   // 充電の可否を判断
   if(charge_condition == charging){
